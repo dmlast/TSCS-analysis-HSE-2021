@@ -1,0 +1,79 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, results='hide', cache=FALSE}
+library(dplyr)
+library(AER)
+library(foreign)
+data <- read.dta(file.choose())
+m1 <- lm(burglary ~ police,  data = data)
+summary(m1)
+m1 <- lm(burglary ~ police + factor(week) + factor(borough),  data = data)
+summary(m1)
+```
+#Задание 1
+
+В этой модели связь между откликом и предиктором оценивается как положительная: при росте предиктора на 1 
+отклик растёт на 0.15. При добавлении контрольных переменных связь оценивается как отрицательная (слабая)
+Мы не можем полагаться на эти показатели, так как они не учитывают потенциальную эндогенность переменных, 
+что ведёт к ложной значимости оценок и их смещению. 
+Потенциальными источниками эндогенности могут служить значимые пропущенные переменные (внешние шоки), неоднозначность причинно-следственной связи - мы не можем гарантировать, что число полицейских влияет на число преступлений, число часо патрулирования может не отражать качества патрулирования. 
+
+#Задание 2
+Влияние инструмента на ключевой предиктор: да, очевидным образом усиление патрулирования после терактов 
+влияет на количество часов патрулирования. 
+Корреляция через ключевой предиктор: скорее да, влияние инструмента на предиктор теоретически сильнее обосновано, чем влияние инструмента на отклик 
+Экзогенность инструмента: скорее нет. Интенсивность преступлений может изменяться в связи с ощущениями от терактов, которые не описаны в рамках модели. 
+
+#Задание 3
+Сначала мы оцениваем МНК инструмента на ключевой предиктор и сохраняем предсказанные значения ключевого предиктора. Так мы "очищаем" ключевой предиктор от основных источников эндогенности. 
+Затем мы оцениваем МНК отклика на предсказанные значения ключевого предиктора. Так мы получаем более эффективные (из-за очищения от эндогенности) оценки в регрессионной модели. 
+Тест на слабость инструмента: p-value < 2e-16, значит, мы отвергаем гипотезу о равенстве коэффициентов нулю, инструмент значим и его использование оправдано. 
+Тест Ву-Хаусмана: 7.3e-06. Существует эндогенность (корреляция между предиктором и ошибками)
+Результаты изменились и стали меньше и менее статистически значимыми. Изменение связано с частичным решением проблемы эндогенности. 
+
+```{r, results='hide', cache=FALSE}
+m_step1 <- lm(police ~ instrument + factor(week), data)
+summary(m_step1)
+firststage <- m_step1$fitted.values
+m_step2 <- lm(burglary ~ firststage + factor(week), data)
+summary(m_step2)
+coeftest(m_step2, vcov = vcovHC(m_step2, type = "HC3"))
+m2 <- ivreg(burglary ~ police + factor(week) | factor(week) + instrument, data = data)
+summary(m2, diagnostics = TRUE)
+```
+#Задание 4
+
+В обоих случаях мы получаем результаты, аналогичные предыдущему пункту: оценки становятся менее значимыми и меньшье в абсолютном значении. Результаты статистических тестов аналогичны. 
+
+```{r, results='hide', cache=FALSE}
+m1 <- lm(theft ~ police,  data = data)
+summary(m1)
+m_step2 <- lm(theft ~ firststage + factor(week), data)
+summary(m_step2)
+coeftest(m_step2, vcov = vcovHC(m_step2, type = "HC3"))
+m2 <- ivreg(theft ~ police + factor(week) | factor(week) + instrument, data = data)
+summary(m2, diagnostics = TRUE)
+
+
+m1 <- lm(violence ~ police,  data = data)
+summary(m1)
+m_step1 <- lm(police ~ instrument + factor(week), data)
+summary(m_step1)
+firststage <- m_step1$fitted.values
+m_step2 <- lm(violence ~ firststage + factor(week), data)
+summary(m_step2)
+coeftest(m_step2, vcov = vcovHC(m_step2, type = "HC3"))
+m2 <- ivreg(violence ~ police + factor(week) | factor(week) + instrument, data = data)
+summary(m2, diagnostics = TRUE)
+
+
+
+```
+
+
+
